@@ -1,33 +1,31 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
+    "$schema": "https://openapi.vercel.sh/vercel.json",
+    "services": {
+        "app": {
+            "root": ".",
+            "framework": "django"
+        },
+        "backend": {
+            "root": "backend",
+            "framework": "django"
+        },
+        "frontend": {
+            "root": "frontend",
+            "framework": "vite"
+        }
     },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "api/index.py"
-    },
-    {
-      "src": "/media/(.*)",
-      "dest": "api/index.py"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ]
+    "rewrites": [
+        {
+            "source": "/api/(.*)",
+            "destination": {
+                "service": "backend"
+            }
+        },
+        {
+            "source": "/(.*)",
+            "destination": {
+                "service": "app"
+            }
+        }
+    ]
 }
