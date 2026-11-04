@@ -48,7 +48,8 @@ urlpatterns = [
     # Public & Common
     path('dashboard/stats/', dashboard_stats_view, name='dashboard_stats'),
     path('scoreboard/', scoreboard_data_view, name='scoreboard_data'),
-    path('certificates/verify/<uuid:token>/', public_verify_certificate, name='public_verify_certificate'),
+    path('certificates/verify/<str:token>/', public_verify_certificate, name='public_verify_certificate'),
+    path('certificates/verify/<str:token>', public_verify_certificate, name='public_verify_certificate_noslash'),
 
     # Parent-specific
     path('parent/children/', parent_children_view, name='parent_children'),

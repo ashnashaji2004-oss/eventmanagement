@@ -723,7 +723,9 @@ class EventViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        kwargs = {'coordinating_teacher': self.request.user}
+        kwargs = {}
+        if not serializer.validated_data.get('coordinating_teacher'):
+            kwargs['coordinating_teacher'] = self.request.user
         if not serializer.validated_data.get('category'):
             first_cat = EventCategory.objects.first()
             if not first_cat:
@@ -773,8 +775,14 @@ class EventViewSet(viewsets.ModelViewSet):
 
         if new_close_date_str:
             try:
-                new_date = datetime.fromisoformat(new_close_date_str)
-                event.registration_close_date = new_date
+                from django.utils.dateparse import parse_datetime
+                parsed = parse_datetime(new_close_date_str)
+                if parsed:
+                    if timezone.is_naive(parsed):
+                        parsed = timezone.make_aware(parsed)
+                    event.registration_close_date = parsed
+                else:
+                    event.registration_close_date = datetime.fromisoformat(new_close_date_str)
             except Exception:
                 pass
 
@@ -929,6 +937,76 @@ class ResultViewSet(viewsets.ModelViewSet):
 
         log_audit(self.request.user, 'ENTER_RESULT', 'Result', result.id, f"Recorded and published result for {result.event.name}", self.request)
 
+    @transaction.atomic
+    def perform_update(self, serializer):
+        result = serializer.save()
+
+        # Recalculate house points for this result
+        school_settings = SchoolSettings.objects.first()
+        pts_1st = school_settings.points_1st if school_settings else 10
+        pts_2nd = school_settings.points_2nd if school_settings else 7
+        pts_3rd = school_settings.points_3rd if school_settings else 5
+        pts_part = school_settings.points_participation if school_settings else 1
+
+        points = 0
+        if result.position == ResultPosition.FIRST:
+            points = pts_1st
+        elif result.position == ResultPosition.SECOND:
+            points = pts_2nd
+        elif result.position == ResultPosition.THIRD:
+            points = pts_3rd
+        elif result.position == ResultPosition.PARTICIPATION:
+            points = pts_part
+
+        house = result.get_house()
+        tx = HouseScoreTransaction.objects.filter(result=result).first()
+        if house and points > 0:
+            if tx:
+                tx.house = house
+                tx.points = points
+                tx.reason = f"{result.event.name} - {result.get_position_display()} ({result.award or 'Winner'})"
+                tx.academic_year = result.event.academic_year
+                tx.save()
+            else:
+                try:
+                    HouseScoreTransaction.objects.create(
+                        house=house,
+                        result=result,
+                        event=result.event,
+                        points=points,
+                        reason=f"{result.event.name} - {result.get_position_display()} ({result.award or 'Winner'})",
+                        transaction_type=TransactionType.RESULT_POINTS,
+                        academic_year=result.event.academic_year,
+                        created_by=self.request.user
+                    )
+                except IntegrityError:
+                    pass
+        elif tx:
+            tx.delete()
+
+        # Update or issue certificate
+        if result.student and result.certificate_eligible and result.position in [ResultPosition.FIRST, ResultPosition.SECOND, ResultPosition.THIRD]:
+            cert = Certificate.objects.filter(result=result).first()
+            if cert:
+                cert.award_title = result.award or result.get_position_display()
+                cert.award_title_ml = result.award_ml
+                cert.status = CertificateStatus.VALID
+                cert.save()
+            else:
+                cert_num = f"SF-{result.event.academic_year.replace('-', '')}-{result.id:04d}"
+                Certificate.objects.create(
+                    student=result.student,
+                    result=result,
+                    event=result.event,
+                    certificate_number=cert_num,
+                    award_title=result.award or result.get_position_display(),
+                    award_title_ml=result.award_ml,
+                    status=CertificateStatus.VALID,
+                    academic_year=result.event.academic_year
+                )
+
+        log_audit(self.request.user, 'UPDATE_RESULT', 'Result', result.id, f"Updated result for {result.event.name}", self.request)
+
     @action(detail=True, methods=['post'])
     def publish(self, request, pk=None):
         result = self.get_object()
@@ -946,7 +1024,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'download_pdf':
             return [permissions.AllowAny()]
-        if self.action == 'retrieve':
+        if self.action in ['list', 'retrieve']:
             return [permissions.IsAuthenticated()]
         return [IsTeacherUserRole()]
 
@@ -1159,38 +1237,50 @@ class CertificateViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def public_verify_certificate(request, token):
+    clean_token = str(token).strip()
+    cert = None
     try:
-        cert = Certificate.objects.select_related('student', 'student__house', 'event').get(verification_token=token)
-        settings_obj = SchoolSettings.objects.first()
-        school_name = settings_obj.school_name if settings_obj else "Chaldean Syrian Higher Secondary School"
-        school_name_ml = settings_obj.school_name_ml if settings_obj else "ചാൽഡിയൻ സിറിയൻ ഹയർ സെക്കൻഡറി സ്കൂൾ"
+        import uuid as _uuid
+        val = _uuid.UUID(clean_token)
+        cert = Certificate.objects.select_related('student', 'student__house', 'event').filter(verification_token=val).first()
+    except (ValueError, AttributeError):
+        pass
 
-        data = {
-            'status': cert.status,
-            'is_valid': cert.status == CertificateStatus.VALID,
-            'certificate_number': cert.certificate_number,
-            'recipient_name': cert.student.full_name,
-            'malayalam_name': cert.student.malayalam_name,
-            'event_name': cert.event.name,
-            'event_name_ml': cert.event.name_ml,
-            'award_title': cert.award_title,
-            'award_title_ml': cert.award_title_ml,
-            'house_name': cert.student.house.name if cert.student.house else 'N/A',
-            'house_color': cert.student.house.color_code if cert.student.house else '#3B82F6',
-            'academic_year': cert.academic_year,
-            'issued_at': cert.issued_at.strftime('%d-%b-%Y'),
-            'school_name': school_name,
-            'school_name_ml': school_name_ml,
-            'revocation_reason': cert.revocation_reason if cert.status == CertificateStatus.REVOKED else None,
-            'revoked_at': cert.revoked_at.strftime('%d-%b-%Y') if cert.revoked_at else None
-        }
-        return Response(data)
-    except Certificate.DoesNotExist:
+    if not cert:
+        cert = Certificate.objects.select_related('student', 'student__house', 'event').filter(certificate_number__iexact=clean_token).first()
+
+    if not cert:
         return Response({
             'status': 'NOT_FOUND',
             'is_valid': False,
-            'error': 'No certificate found matching the provided verification token.'
+            'error': 'No certificate found matching the provided verification token or certificate number.'
         }, status=status.HTTP_404_NOT_FOUND)
+
+    settings_obj = SchoolSettings.objects.first()
+    school_name = settings_obj.school_name if settings_obj else "Chaldean Syrian Higher Secondary School"
+    school_name_ml = settings_obj.school_name_ml if settings_obj else "ചാൽഡിയൻ സിറിയൻ ഹയർ സെക്കൻഡറി സ്കൂൾ"
+
+    data = {
+        'status': cert.status,
+        'is_valid': cert.status == CertificateStatus.VALID,
+        'certificate_number': cert.certificate_number,
+        'verification_token': str(cert.verification_token),
+        'recipient_name': cert.student.full_name,
+        'malayalam_name': cert.student.malayalam_name,
+        'event_name': cert.event.name,
+        'event_name_ml': cert.event.name_ml,
+        'award_title': cert.award_title,
+        'award_title_ml': cert.award_title_ml,
+        'house_name': cert.student.house.name if cert.student.house else 'N/A',
+        'house_color': cert.student.house.color_code if cert.student.house else '#3B82F6',
+        'academic_year': cert.academic_year,
+        'issued_at': cert.issued_at.strftime('%d-%b-%Y'),
+        'school_name': school_name,
+        'school_name_ml': school_name_ml,
+        'revocation_reason': cert.revocation_reason if cert.status == CertificateStatus.REVOKED else None,
+        'revoked_at': cert.revoked_at.strftime('%d-%b-%Y') if cert.revoked_at else None
+    }
+    return Response(data)
 
 
 # --- Parent Specific Child Views ---

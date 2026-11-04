@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import SchoolEmblem from '../../components/SchoolEmblem';
 import {
@@ -9,22 +7,24 @@ import {
   Shield,
   Calendar,
   Award,
-  Clock,
   Save,
   Plus,
   CheckCircle2,
   AlertCircle,
-  FileText,
   Search,
-  Filter,
   RefreshCw,
   Info,
-  Check,
-  Building
+  Building,
+  UserCog,
+  Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  User
 } from 'lucide-react';
 
 export default function AdminSettings() {
-  const { t } = useTranslation();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('branding'); // branding | years | scoring | audit
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -71,18 +71,6 @@ export default function AdminSettings() {
   const [auditActionFilter, setAuditActionFilter] = useState('ALL');
   const [loadingAudit, setLoadingAudit] = useState(false);
 
-  // Fetch initial data
-  useEffect(() => {
-    fetchSettings();
-    fetchAcademicYears();
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'audit') {
-      fetchAuditLogs();
-    }
-  }, [activeTab]);
-
   const fetchSettings = () => {
     setLoading(true);
     api.get('/settings/')
@@ -113,6 +101,18 @@ export default function AdminSettings() {
       .finally(() => setLoadingAudit(false));
   };
 
+  // Fetch initial data
+  useEffect(() => {
+    fetchSettings();
+    fetchAcademicYears();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      fetchAuditLogs();
+    }
+  }, [activeTab]);
+
   const handleSettingsSubmit = async (e) => {
     e.preventDefault();
     setSavingSettings(true);
@@ -127,6 +127,51 @@ export default function AdminSettings() {
       setSettingsError(err.response?.data?.error || 'Failed to update settings.');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleCredentialsSubmit = async (e) => {
+    e.preventDefault();
+    setCredLoading(true);
+    setCredSuccess('');
+    setCredErrors({});
+
+    if (!credForm.current_password) {
+      setCredErrors({ current_password: 'Current password is required.' });
+      setCredLoading(false);
+      return;
+    }
+
+    if (!credForm.new_username && !credForm.new_password) {
+      setCredErrors({ general: 'Please provide a new username or new password to update.' });
+      setCredLoading(false);
+      return;
+    }
+
+    if (credForm.new_password && credForm.new_password !== credForm.confirm_password) {
+      setCredErrors({ confirm_password: 'New password and confirmation do not match.' });
+      setCredLoading(false);
+      return;
+    }
+
+    try {
+      const res = await api.post('/auth/change-credentials/', credForm);
+      setCredSuccess(res.data.detail || 'Credentials updated successfully.');
+      if (res.data.new_username && user) {
+        const updated = { ...user, username: res.data.new_username };
+        localStorage.setItem('schoolfest_user', JSON.stringify(updated));
+      }
+      setCredForm({
+        current_password: '',
+        new_username: '',
+        new_password: '',
+        confirm_password: ''
+      });
+      setTimeout(() => setCredSuccess(''), 6000);
+    } catch (err) {
+      setCredErrors(err.response?.data || { general: 'Failed to update credentials.' });
+    } finally {
+      setCredLoading(false);
     }
   };
 
@@ -280,6 +325,12 @@ export default function AdminSettings() {
 
       {/* TAB 1: School Branding & Profile */}
       {activeTab === 'branding' && (
+        loading ? (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-12 text-center">
+            <RefreshCw className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-3" />
+            <p className="text-slate-500 text-sm font-medium">Loading school settings...</p>
+          </div>
+        ) : (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 rounded-2xl bg-gradient-to-r from-amber-50/80 via-white to-slate-50 border border-amber-200/60">
             <SchoolEmblem size="xl" showLabel={false} />
@@ -400,6 +451,7 @@ export default function AdminSettings() {
             </div>
           </form>
         </div>
+        )
       )}
 
       {/* TAB 2: Academic Years */}
@@ -756,6 +808,167 @@ export default function AdminSettings() {
           </div>
         </div>
       )}
+      {/* TAB 5: Account Security */}
+      {activeTab === 'security' && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-rose-600" />
+                Administrator Account Security
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Update administrative account credentials and authentication passwords.
+              </p>
+            </div>
+            {user && (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-medium text-slate-700">
+                <User className="w-4 h-4 text-slate-500" />
+                <span>Current Account: <strong className="text-slate-900">{user.username}</strong></span>
+              </div>
+            )}
+          </div>
+
+          {credSuccess && (
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <span>{credSuccess}</span>
+            </div>
+          )}
+
+          {credErrors.detail && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+              <span>{credErrors.detail}</span>
+            </div>
+          )}
+
+          {credErrors.general && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+              <span>{credErrors.general}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleCredentialsSubmit} className="space-y-6 max-w-2xl">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Current Password <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showCurrPwd ? 'text' : 'password'}
+                  value={credForm.current_password}
+                  onChange={(e) => setCredForm({ ...credForm, current_password: e.target.value })}
+                  placeholder="Enter current password to verify identity"
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrPwd(!showCurrPwd)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showCurrPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {credErrors.current_password && (
+                <p className="text-xs text-rose-600 mt-1">{credErrors.current_password}</p>
+              )}
+            </div>
+
+            <div className="border-t border-slate-100 pt-5 space-y-5">
+              <h3 className="text-sm font-semibold text-slate-800">Change Username or Password (Optional)</h3>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  New Admin Username
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={credForm.new_username}
+                    onChange={(e) => setCredForm({ ...credForm, new_username: e.target.value })}
+                    placeholder="Leave blank to keep existing username"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white"
+                  />
+                </div>
+                {credErrors.new_username && (
+                  <p className="text-xs text-rose-600 mt-1">{credErrors.new_username}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showNewPwd ? 'text' : 'password'}
+                      value={credForm.new_password}
+                      onChange={(e) => setCredForm({ ...credForm, new_password: e.target.value })}
+                      placeholder="Minimum 6 characters"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPwd(!showNewPwd)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {credErrors.new_password && (
+                    <p className="text-xs text-rose-600 mt-1">{credErrors.new_password}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showConfPwd ? 'text' : 'password'}
+                      value={credForm.confirm_password}
+                      onChange={(e) => setCredForm({ ...credForm, confirm_password: e.target.value })}
+                      placeholder="Re-enter new password"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfPwd(!showConfPwd)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showConfPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {credErrors.confirm_password && (
+                    <p className="text-xs text-rose-600 mt-1">{credErrors.confirm_password}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-200">
+              <button
+                type="submit"
+                disabled={credLoading}
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-colors disabled:opacity-50"
+              >
+                {credLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Update Credentials
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
     </div>
   );
 }

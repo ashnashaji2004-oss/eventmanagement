@@ -22,11 +22,13 @@ class IsTeacherUserRole(permissions.BasePermission):
 
 class IsParentUserRole(permissions.BasePermission):
     """
-    Allows access only to active and approved Parent users.
+    Allows access only to active and approved Parent users (or Admin).
     """
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated):
             return False
+        if request.user.role == 'ADMIN' or request.user.is_superuser or request.user.is_staff:
+            return True
         if request.user.role == 'PARENT':
             return bool(
                 request.user.is_verified and

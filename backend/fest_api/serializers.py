@@ -17,7 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'role',
             'phone_number', 'is_verified', 'verification_status', 'rejection_reason',
-            'verified_at', 'is_active', 'date_joined'
+            'verified_at', 'is_active', 'date_joined', 'is_superuser'
         ]
         read_only_fields = ['date_joined', 'verified_at']
 

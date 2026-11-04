@@ -29,20 +29,25 @@ except ImportError:
 
 def generate_qr_code_image(verification_url):
     """Generate a PIL Image containing QR code for verification URL"""
-    if qrcode is None or Image is None:
-        if Image is not None:
+    if qrcode is not None and Image is not None:
+        try:
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=10,
+                border=2,
+            )
+            qr.add_data(verification_url)
+            qr.make(fit=True)
+            return qr.make_image(fill_color="black", back_color="white")
+        except Exception as e:
+            logger.warning(f"Failed to generate QR code: {e}")
+    if Image is not None:
+        try:
             return Image.new('RGB', (100, 100), color=(240, 240, 240))
-        return None
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=10,
-        border=2,
-    )
-    qr.add_data(verification_url)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    return img
+        except Exception:
+            pass
+    return None
 
 
 _CanvasBase = canvas.Canvas if canvas is not None else object
@@ -228,11 +233,15 @@ def generate_certificate_pdf(certificate, verification_url=None):
     # 5. Footer with QR Code, Signatures, and Verification
     # Generate QR Code image
     qr_img = generate_qr_code_image(verification_url)
-    qr_buffer = io.BytesIO()
-    qr_img.save(qr_buffer, format='PNG')
-    qr_buffer.seek(0)
-    
-    rl_qr = RLImage(qr_buffer, width=1.1*inch, height=1.1*inch)
+    rl_qr = Paragraph("<font size=7 color='#6B7280'>[QR Verification]</font>", styles['Normal'])
+    if qr_img is not None:
+        try:
+            qr_buffer = io.BytesIO()
+            qr_img.save(qr_buffer, format='PNG')
+            qr_buffer.seek(0)
+            rl_qr = RLImage(qr_buffer, width=1.1*inch, height=1.1*inch)
+        except Exception as e:
+            logger.warning(f"Error adding QR to PDF: {e}")
     
     cert_meta_text = (
         f"<font size=8 color='#6B7280'>"
