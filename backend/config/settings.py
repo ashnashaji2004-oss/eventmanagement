@@ -23,6 +23,10 @@ if allowed_hosts_env:
 else:
     ALLOWED_HOSTS = ['*']
 
+render_hostname = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if render_hostname and render_hostname not in ALLOWED_HOSTS and '*' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_hostname)
+
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 AUTH_USER_MODEL = 'fest_api.User'
@@ -205,3 +209,18 @@ CORS_ALLOW_CREDENTIALS = True
 cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS')
 if cors_origins_env:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+
+# CSRF Trusted Origins for Render & Vercel
+csrf_trusted_env = os.getenv('CSRF_TRUSTED_ORIGINS')
+if csrf_trusted_env:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_trusted_env.split(',') if origin.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        'https://*.onrender.com',
+        'https://*.vercel.app',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000'
+    ]
+    if render_hostname:
+        CSRF_TRUSTED_ORIGINS.append(f'https://{render_hostname}')
