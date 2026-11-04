@@ -15,9 +15,15 @@ if venv_site_packages.is_dir() and str(venv_site_packages) not in sys.path:
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-schoolfest-super-secret-key-2026-prod-stage')
 
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['*']
+allowed_hosts_env = os.getenv('ALLOWED_HOSTS')
+if allowed_hosts_env:
+    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
+else:
+    ALLOWED_HOSTS = ['*']
+
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 AUTH_USER_MODEL = 'fest_api.User'
 
@@ -39,6 +45,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -68,27 +75,38 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database Configuration:
-# Supports DATABASE_URL (Vercel Postgres, Neon, Supabase) and PostgreSQL env vars with fallback to SQLite
+# Supports DATABASE_URL (Neon, Supabase, Render Postgres) with fallback to SQLite
 database_url = os.getenv('DATABASE_URL') or os.getenv('POSTGRES_URL')
 USE_SQLITE = os.getenv('USE_SQLITE', 'False' if database_url else 'True').lower() in ('true', '1', 'yes')
 
 if not USE_SQLITE and database_url:
-    from urllib.parse import urlparse, unquote, parse_qs
-    url = urlparse(database_url)
-    qs = parse_qs(url.query)
-    sslmode = qs.get('sslmode', ['require' if url.hostname not in ('localhost', '127.0.0.1') else None])[0]
+    try:
+        import dj_database_url
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=database_url,
+                conn_max_age=600,
+                conn_health_checks=True,
+                ssl_require=True if any(k in database_url for k in ['neon.tech', 'supabase', 'sslmode=require']) else False
+            )
+        }
+    except ImportError:
+        from urllib.parse import urlparse, unquote, parse_qs
+        url = urlparse(database_url)
+        qs = parse_qs(url.query)
+        sslmode = qs.get('sslmode', ['require' if url.hostname not in ('localhost', '127.0.0.1') else None])[0]
 
-    db_config = {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': url.path[1:],
-        'USER': unquote(url.username) if url.username else '',
-        'PASSWORD': unquote(url.password) if url.password else '',
-        'HOST': url.hostname,
-        'PORT': url.port or '5432',
-    }
-    if sslmode:
-        db_config['OPTIONS'] = {'sslmode': sslmode}
-    DATABASES = {'default': db_config}
+        db_config = {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': url.path[1:],
+            'USER': unquote(url.username) if url.username else '',
+            'PASSWORD': unquote(url.password) if url.password else '',
+            'HOST': url.hostname,
+            'PORT': url.port or '5432',
+        }
+        if sslmode:
+            db_config['OPTIONS'] = {'sslmode': sslmode}
+        DATABASES = {'default': db_config}
 elif not USE_SQLITE:
     DATABASES = {
         'default': {
@@ -103,7 +121,6 @@ elif not USE_SQLITE:
 else:
     sqlite_path = BASE_DIR / 'db.sqlite3'
     # In Vercel serverless functions, the root filesystem is read-only.
-    # Copy db.sqlite3 to /tmp so sqlite writes (e.g. login updates, audit logs) succeed without 500 errors.
     if os.getenv('VERCEL') == '1':
         import shutil
         tmp_db = Path('/tmp') / 'db.sqlite3'
@@ -136,6 +153,15 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -163,6 +189,9 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS Configuration
+CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL', 'True').lower() in ('true', '1', 'yes')
 CORS_ALLOW_CREDENTIALS = True
+cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS')
+if cors_origins_env:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]

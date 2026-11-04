@@ -27,7 +27,8 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('schoolfest_refresh_token');
       if (refreshToken) {
         try {
-          const res = await axios.post('/api/auth/refresh/', { refresh: refreshToken });
+          const refreshUrl = `${(api.defaults.baseURL || '/api').replace(/\/+$/, '')}/auth/refresh/`;
+          const res = await axios.post(refreshUrl, { refresh: refreshToken });
           if (res.data.access) {
             localStorage.setItem('schoolfest_access_token', res.data.access);
             originalRequest.headers.Authorization = `Bearer ${res.data.access}`;
