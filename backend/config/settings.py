@@ -47,7 +47,7 @@ INSTALLED_APPS = [
 ]
 
 try:
-    import whitenoise  # noqa: F401
+    import whitenoise  # type: ignore # noqa: F401
     HAS_WHITENOISE = True
 except ImportError:
     HAS_WHITENOISE = False
@@ -95,7 +95,7 @@ USE_SQLITE = os.getenv('USE_SQLITE', 'False' if database_url else 'True').lower(
 
 if not USE_SQLITE and database_url:
     try:
-        import dj_database_url
+        import dj_database_url  # type: ignore
         DATABASES = {
             'default': dj_database_url.config(
                 default=database_url,
@@ -166,13 +166,14 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT.mkdir(parents=True, exist_ok=True)
 
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage" if HAS_WHITENOISE else "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage" if (HAS_WHITENOISE and not DEBUG) else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
 
