@@ -88,11 +88,18 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database Configuration:
-# Supports DATABASE_URL (Neon, Supabase, Render Postgres) with fallback to SQLite
-database_url = os.getenv('DATABASE_URL') or os.getenv('POSTGRES_URL')
+# Supports DATABASE_URL (Neon, Supabase, Render Postgres) with graceful fallback to SQLite
+database_url = (
+    os.getenv('DATABASE_URL')
+    or os.getenv('POSTGRES_URL')
+    or os.getenv('POSTGRESQL_URL')
+    or os.getenv('DB_URL')
+)
 USE_SQLITE = os.getenv('USE_SQLITE', 'False' if database_url else 'True').lower() in ('true', '1', 'yes')
 
 if not USE_SQLITE and database_url:
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
     try:
         import dj_database_url  # type: ignore
         DATABASES = {
@@ -120,14 +127,14 @@ if not USE_SQLITE and database_url:
         if sslmode:
             db_config['OPTIONS'] = {'sslmode': sslmode}
         DATABASES = {'default': db_config}
-elif not USE_SQLITE:
+elif not USE_SQLITE and os.getenv('DB_HOST') and os.getenv('DB_HOST') != 'localhost':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv('DB_NAME', 'schoolfest'),
             'USER': os.getenv('DB_USER', 'postgres'),
             'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
-            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'HOST': os.getenv('DB_HOST'),
             'PORT': os.getenv('DB_PORT', '5432'),
         }
     }
@@ -172,7 +179,7 @@ STORAGES = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage" if (HAS_WHITENOISE and not DEBUG) else "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage" if HAS_WHITENOISE else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
 

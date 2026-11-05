@@ -7,6 +7,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.sqlite3-journal
+staticfiles/
+backend/staticfiles/
 
 # Node / Frontend
 frontend/node_modules/
