@@ -405,6 +405,37 @@ def scoreboard_data_view(request):
         recent_txs = recent_txs.filter(academic_year=academic_year)
     recent_transactions = HouseScoreTransactionSerializer(recent_txs[:8], many=True).data
 
+    # Recently concluded events with top 3 published results
+    concluded_ev_qs = Event.objects.filter(
+        status__in=[EventStatus.RESULTS_PUBLISHED, EventStatus.COMPLETED]
+    )
+    if academic_year:
+        concluded_ev_qs = concluded_ev_qs.filter(academic_year=academic_year)
+    if category_id:
+        concluded_ev_qs = concluded_ev_qs.filter(category_id=category_id)
+    concluded_ev_qs = concluded_ev_qs.order_by('-event_date', '-id')[:6]
+
+    recent_events = []
+    for cev in concluded_ev_qs:
+        top_results = []
+        for cr in cev.results.filter(is_published=True, approval_status=ApprovalStatus.APPROVED).select_related('student', 'student__house', 'team', 'team__house').order_by('position')[:3]:
+            s_name = cr.student.full_name if cr.student else (cr.team.name if cr.team else 'N/A')
+            h_obj = cr.get_house()
+            h_name = h_obj.name if h_obj else 'N/A'
+            top_results.append({
+                'position': cr.position,
+                'student_name': s_name,
+                'house_name': h_name,
+                'award': cr.award
+            })
+        recent_events.append({
+            'id': cev.id,
+            'name': cev.name,
+            'name_ml': cev.name_ml,
+            'school_section': cev.school_section,
+            'results': top_results
+        })
+
     settings_obj = SchoolSettings.objects.first()
     school_name = settings_obj.school_name if settings_obj else "Chaldean Syrian Higher Secondary School"
     school_name_ml = settings_obj.school_name_ml if settings_obj else "ചാൽഡിയൻ സിറിയൻ ഹയർ സെക്കൻഡറി സ്കൂൾ"
@@ -416,6 +447,7 @@ def scoreboard_data_view(request):
         'hs_standings': hs_standings,
         'leading_house': standings[0] if standings else None,
         'recent_transactions': recent_transactions,
+        'recent_events': recent_events,
         'last_updated': timezone.now().isoformat(),
         'school_name': school_name,
         'school_name_ml': school_name_ml,

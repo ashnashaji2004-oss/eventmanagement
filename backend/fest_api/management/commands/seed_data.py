@@ -1086,7 +1086,7 @@ class Command(BaseCommand):
                 'event_type': EventType.INDIVIDUAL,
                 'category': lit_cat,
                 'venue': 'Language Lab 1',
-                'status': EventStatus.COMPLETED,
+                'status': EventStatus.RESULTS_PUBLISHED,
                 'academic_year': '2025-2026',
                 'max_participants': 30,
                 'event_date': (now - timedelta(days=2)).date(),
@@ -1107,7 +1107,7 @@ class Command(BaseCommand):
                 'event_type': EventType.INDIVIDUAL,
                 'category': lit_cat,
                 'venue': 'Examination Hall 2',
-                'status': EventStatus.COMPLETED,
+                'status': EventStatus.RESULTS_PUBLISHED,
                 'academic_year': '2025-2026',
                 'max_participants': 40,
                 'event_date': (now - timedelta(days=2)).date(),
@@ -1128,7 +1128,7 @@ class Command(BaseCommand):
                 'event_type': EventType.INDIVIDUAL,
                 'category': lit_cat,
                 'venue': 'Seminar Hall A',
-                'status': EventStatus.COMPLETED,
+                'status': EventStatus.RESULTS_PUBLISHED,
                 'academic_year': '2025-2026',
                 'max_participants': 40,
                 'event_date': (now - timedelta(days=1)).date(),
@@ -1149,7 +1149,7 @@ class Command(BaseCommand):
                 'event_type': EventType.INDIVIDUAL,
                 'category': lit_cat,
                 'venue': 'Senior Library Hall',
-                'status': EventStatus.COMPLETED,
+                'status': EventStatus.RESULTS_PUBLISHED,
                 'academic_year': '2025-2026',
                 'max_participants': 35,
                 'event_date': (now - timedelta(days=1)).date(),
@@ -1186,6 +1186,10 @@ class Command(BaseCommand):
                     'rules': ed['rules']
                 }
             )
+            ev_o.status = ed['status']
+            ev_o.school_section = ed['school_section']
+            ev_o.name_ml = ed['name_ml']
+            ev_o.save()
             img_events[ed['key']] = ev_o
 
         img_results_data = [
@@ -1235,6 +1239,13 @@ class Command(BaseCommand):
                     'approved_at': now - timedelta(hours=1)
                 }
             )
+            res_x.approval_status = ApprovalStatus.APPROVED
+            res_x.is_published = True
+            res_x.position = pos_x
+            res_x.marks_obtained = mark_x
+            res_x.award = aw_x
+            res_x.award_ml = aw_ml_x
+            res_x.save()
             HouseScoreTransaction.objects.get_or_create(
                 result=res_x,
                 defaults={
