@@ -103,7 +103,7 @@ export default function AdminEvents() {
         await api.post('/events/', d);
         setMessage(`Event '${d.name}' created successfully.`);
       } else {
-        await api.put(`/events/${d.id}/`, d);
+        await api.patch(`/events/${d.id}/`, d);
         setMessage(`Event '${d.name}' updated successfully.`);
       }
       setEventModal({ open: false, isNew: false, data: {} });
@@ -367,7 +367,7 @@ export default function AdminEvents() {
 
                         <button
                           type="button"
-                          onClick={() => setEventModal({ open: false, isNew: false, data: { ...ev } })}
+                          onClick={() => setEventModal({ open: true, isNew: false, data: { ...ev } })}
                           className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs"
                         >
                           Edit

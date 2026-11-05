@@ -85,7 +85,7 @@ export default function EventsPage() {
           </div>
 
           {/* Category Select */}
-          {/* <div>
+          <div>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
@@ -98,7 +98,7 @@ export default function EventsPage() {
                 </option>
               ))}
             </select>
-          </div> */}
+          </div>
 
           {/* Status Select */}
           <div>
@@ -137,11 +137,18 @@ export default function EventsPage() {
                 className="bg-white rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
               >
                 <div className="p-6 space-y-4">
-                  {/* Category and Countdown badge */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md">
-                      {i18n.language === 'ml' && ev.category_name_ml ? ev.category_name_ml : ev.category_name}
-                    </span>
+                  {/* Category, Section and Countdown badge */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md">
+                        {i18n.language === 'ml' && ev.category_name_ml ? ev.category_name_ml : ev.category_name}
+                      </span>
+                      {ev.school_section && (
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                          {ev.school_section === 'HS' ? 'HS' : ev.school_section === 'UP' ? 'UP' : 'ALL'}
+                        </span>
+                      )}
+                    </div>
                     <CountdownTimer
                       closeDate={ev.registration_close_date}
                       isOverridden={ev.is_registration_overridden}
