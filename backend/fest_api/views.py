@@ -1315,6 +1315,24 @@ def public_verify_certificate(request, token):
     return Response(data)
 
 
+# --- Live Database Seeding Trigger ---
+@api_view(['GET', 'POST'])
+@permission_classes([permissions.AllowAny])
+def seed_live_database_view(request):
+    from django.core.management import call_command
+    try:
+        call_command('seed_data')
+        return Response({
+            "status": "success",
+            "message": "SchoolFest database seeding completed successfully.",
+            "events_count": Event.objects.count(),
+            "results_count": Result.objects.count(),
+            "categories_count": EventCategory.objects.count()
+        })
+    except Exception as e:
+        return Response({"status": "error", "error": str(e)}, status=500)
+
+
 # --- Parent Specific Child Views ---
 @api_view(['GET'])
 @permission_classes([IsParentUserRole])

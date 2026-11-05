@@ -10,7 +10,8 @@ from .views import (
     export_house_standings_csv, export_event_results_csv,
     AdminUserViewSet, admin_stats_view, register_view,
     ParentChildLinkRequestViewSet, AcademicYearViewSet,
-    register_teacher_view, register_parent_view, registration_status_view
+    register_teacher_view, register_parent_view, registration_status_view,
+    seed_live_database_view
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -46,6 +47,7 @@ urlpatterns = [
     path('admin/stats/', admin_stats_view, name='admin_stats'),
 
     # Public & Common
+    path('seed-live-data/', seed_live_database_view, name='seed_live_data'),
     path('dashboard/stats/', dashboard_stats_view, name='dashboard_stats'),
     path('scoreboard/', scoreboard_data_view, name='scoreboard_data'),
     path('certificates/verify/<str:token>/', public_verify_certificate, name='public_verify_certificate'),
