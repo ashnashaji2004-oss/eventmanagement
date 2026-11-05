@@ -45,7 +45,6 @@ INSTALLED_APPS = [
     # SchoolFest app
     'fest_api',
 ]
-
 try:
     import whitenoise  # type: ignore # noqa: F401
     HAS_WHITENOISE = True
